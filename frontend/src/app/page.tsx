@@ -2,11 +2,14 @@
 
 import ProblemList from "@/components/problems/ProblemList";
 import ProblemSummary from "@/components/problems/ProblemSummary";
+import AddProblemModal from "@/components/problems/AddProblemModal";
 import { useProblems } from "@/components/problems/useProblems";
 import styles from "./page.module.css";
+import { useState } from "react";
 
 export default function Home() {
-  const { problems, isLoading, error } = useProblems();
+  const { problems, isLoading, error, addProblem } = useProblems();
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   return (
     <main className={styles.main}>
@@ -19,7 +22,11 @@ export default function Home() {
               A little practice, remembered for longer.
             </p>
           </div>
-          <button className={styles.addButton} type="button">
+          <button
+            className={styles.addButton}
+            type="button"
+            onClick={() => setIsAddModalOpen(true)}
+          >
             <span aria-hidden="true">＋</span> Add problem
           </button>
         </div>
@@ -39,6 +46,13 @@ export default function Home() {
           Your next review is always one small step away.
         </p>
       </section>
+
+      {isAddModalOpen && (
+        <AddProblemModal
+          onClose={() => setIsAddModalOpen(false)}
+          onSubmit={addProblem}
+        />
+      )}
     </main>
   );
 }

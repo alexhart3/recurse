@@ -4,8 +4,20 @@ export type Problem = {
   url: string;
   difficulty: "Easy" | "Medium" | "Hard" | null;
   topics: string[];
+  notes: string;
+  created_at: string;
+  last_reviewed_at: string | null;
   next_review_date: string;
+  review_interval_days: number;
   review_count: number;
+};
+
+export type NewProblem = {
+  title: string;
+  url: string;
+  difficulty: Problem["difficulty"];
+  topics: string[];
+  notes: string;
 };
 
 export function daysUntilReview(dateString: string) {

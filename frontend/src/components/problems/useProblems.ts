@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Problem } from "./problem";
+import type { NewProblem, Problem } from "./problem";
 
 export function useProblems() {
   const [problems, setProblems] = useState<Problem[]>([]);
@@ -23,5 +23,32 @@ export function useProblems() {
       .finally(() => setIsLoading(false));
   }, []);
 
-  return { problems, isLoading, error };
+  async function addProblem(newProblem: NewProblem) {
+    const response = await fetch("http://localhost:8000/problems", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newProblem),
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      const message =
+        body && typeof body.detail === "string"
+          ? body.detail
+          : `Request failed: ${response.status}`;
+      throw new Error(message);
+    }
+
+    const createdProblem = (await response.json()) as Problem;
+    setProblems((currentProblems) =>
+      [...currentProblems, createdProblem].sort(
+        (first, second) =>
+          first.next_review_date.localeCompare(second.next_review_date) ||
+          second.created_at.localeCompare(first.created_at),
+      ),
+    );
+    setError(null);
+  }
+
+  return { problems, isLoading, error, addProblem };
 }
