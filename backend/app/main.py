@@ -32,3 +32,33 @@ def database_health():
             status_code=503,
             detail="Database connection failed",
         ) from exc
+
+
+@app.get("/problems")
+def list_problems():
+    try:
+        with engine.connect() as connection:
+            result = connection.execute(
+                text("""
+                    select
+                        id,
+                        title,
+                        url,
+                        difficulty,
+                        topics,
+                        notes,
+                        created_at,
+                        last_reviewed_at,
+                        next_review_date,
+                        review_interval_days,
+                        review_count
+                    from public.problems
+                    order by next_review_date asc, created_at desc
+                """)
+            )
+            return [dict(row) for row in result.mappings()]
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not load problems",
+        ) from exc
