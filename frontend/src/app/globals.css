@@ -1,10 +1,30 @@
 @import "tailwindcss";
 
-header {
-  border: 1px solid #000;
+:root {
+  color-scheme: light;
+  background: #f8f8f5;
+  color: #20211d;
+  font-family: Arial, Helvetica, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-header h1 {
-  font-size: 1.25rem;
-  font-weight: bold;
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+button {
+  font-family: inherit;
 }
