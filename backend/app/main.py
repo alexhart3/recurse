@@ -1,5 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+
+from app.database import engine
 
 app = FastAPI()
 
@@ -14,4 +18,17 @@ app.add_middleware(
 
 @app.get("/")
 def root():
-    return [1, 2, 3, 4, 5]
+    return {"status": "ok"}
+
+
+@app.get("/health/db")
+def database_health():
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("select 1"))
+        return {"database": "connected"}
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection failed",
+        ) from exc

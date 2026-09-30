@@ -21,8 +21,10 @@ Avoid adding separate dashboard, library, or progress pages unless the app's nee
 
 - Use PostgreSQL for the relational problem and review-history data.
 - Start with Supabase's free tier for the hosted database.
-- The intended app will have a frontend and backend/API. Keep database credentials on the backend, out of frontend code.
-- Hosting choice and backend implementation details are still open.
+- Use the existing FastAPI backend as the API between the frontend and Supabase Postgres.
+- The frontend should make requests to FastAPI and should not access Supabase directly.
+- Keep database credentials on the backend, out of frontend code.
+- Backend hosting choice and implementation details are still open.
 
 ## Initial scope
 
