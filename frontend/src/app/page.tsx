@@ -9,7 +9,15 @@ import { useProblems } from "@/components/problems/useProblems";
 import styles from "./page.module.css";
 
 export default function Home() {
-  const { problems, isLoading, error, addProblem, recordReview } = useProblems();
+  const {
+    problems,
+    isLoading,
+    error,
+    addProblem,
+    updateProblem,
+    recordReview,
+    deleteProblem,
+  } = useProblems();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null);
 
@@ -61,6 +69,8 @@ export default function Home() {
           problemId={selectedProblemId}
           onClose={() => setSelectedProblemId(null)}
           onSubmitReview={recordReview}
+          onDeleteProblem={deleteProblem}
+          onUpdateProblem={updateProblem}
         />
       )}
     </main>

@@ -50,6 +50,39 @@ export function useProblems() {
     setError(null);
   }
 
+  async function updateProblem(problemId: string, updatedProblem: NewProblem) {
+    const response = await fetch(
+      `http://localhost:8000/problems/${encodeURIComponent(problemId)}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedProblem),
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      const message =
+        body && typeof body.detail === "string"
+          ? body.detail
+          : `Request failed: ${response.status}`;
+      throw new Error(message);
+    }
+
+    const updatedDetail = (await response.json()) as ProblemDetail;
+    setProblems((currentProblems) =>
+      currentProblems
+        .map((problem) => (problem.id === problemId ? updatedDetail : problem))
+        .sort(
+          (first, second) =>
+            first.next_review_date.localeCompare(second.next_review_date) ||
+            second.created_at.localeCompare(first.created_at),
+        ),
+    );
+    setError(null);
+    return updatedDetail;
+  }
+
   async function recordReview(problemId: string, review: NewReview) {
     const response = await fetch(
       `http://localhost:8000/problems/${encodeURIComponent(problemId)}/reviews`,
@@ -83,5 +116,34 @@ export function useProblems() {
     return updatedDetail;
   }
 
-  return { problems, isLoading, error, addProblem, recordReview };
+  async function deleteProblem(problemId: string) {
+    const response = await fetch(
+      `http://localhost:8000/problems/${encodeURIComponent(problemId)}`,
+      { method: "DELETE" },
+    );
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      const message =
+        body && typeof body.detail === "string"
+          ? body.detail
+          : `Request failed: ${response.status}`;
+      throw new Error(message);
+    }
+
+    setProblems((currentProblems) =>
+      currentProblems.filter((problem) => problem.id !== problemId),
+    );
+    setError(null);
+  }
+
+  return {
+    problems,
+    isLoading,
+    error,
+    addProblem,
+    updateProblem,
+    recordReview,
+    deleteProblem,
+  };
 }

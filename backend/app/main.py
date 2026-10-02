@@ -220,6 +220,56 @@ def create_problem(problem: ProblemCreate):
         ) from exc
 
 
+@app.put("/problems/{problem_id}")
+def update_problem(problem_id: UUID, problem: ProblemCreate):
+    try:
+        with engine.begin() as connection:
+            updated_result = connection.execute(
+                text("""
+                    update public.problems
+                    set title = :title,
+                        url = :url,
+                        difficulty = :difficulty,
+                        topics = :topics,
+                        notes = :notes
+                    where id = cast(:problem_id as uuid)
+                    returning
+                        id, title, url, difficulty, topics, notes, created_at,
+                        last_reviewed_at, next_review_date,
+                        review_interval_days, review_count
+                """),
+                {**problem.model_dump(), "problem_id": str(problem_id)},
+            )
+            updated_problem = updated_result.mappings().first()
+            if updated_problem is None:
+                raise HTTPException(status_code=404, detail="Problem not found")
+
+            reviews_result = connection.execute(
+                text("""
+                    select id, reviewed_at, rating, solved_on_own,
+                           interval_days_after, notes
+                    from public.reviews
+                    where problem_id = cast(:problem_id as uuid)
+                    order by reviewed_at desc
+                """),
+                {"problem_id": str(problem_id)},
+            )
+            return {
+                **dict(updated_problem),
+                "reviews": [dict(row) for row in reviews_result.mappings()],
+            }
+    except IntegrityError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="A problem with this URL already exists.",
+        ) from exc
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not update problem",
+        ) from exc
+
+
 @app.post("/problems/{problem_id}/reviews")
 def create_review(problem_id: UUID, review: ReviewCreate):
     try:
@@ -295,4 +345,42 @@ def create_review(problem_id: UUID, review: ReviewCreate):
         raise HTTPException(
             status_code=503,
             detail="Could not save review",
+        ) from exc
+
+
+@app.delete("/problems/{problem_id}")
+def delete_problem(problem_id: UUID):
+    try:
+        with engine.begin() as connection:
+            problem_result = connection.execute(
+                text("""
+                    select id
+                    from public.problems
+                    where id = cast(:problem_id as uuid)
+                    for update
+                """),
+                {"problem_id": str(problem_id)},
+            )
+            if problem_result.first() is None:
+                raise HTTPException(status_code=404, detail="Problem not found")
+
+            connection.execute(
+                text("""
+                    delete from public.reviews
+                    where problem_id = cast(:problem_id as uuid)
+                """),
+                {"problem_id": str(problem_id)},
+            )
+            connection.execute(
+                text("""
+                    delete from public.problems
+                    where id = cast(:problem_id as uuid)
+                """),
+                {"problem_id": str(problem_id)},
+            )
+            return {"deleted": True}
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not delete problem",
         ) from exc

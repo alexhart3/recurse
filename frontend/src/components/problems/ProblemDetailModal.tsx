@@ -5,6 +5,7 @@ import {
   daysUntilReview,
   nextReviewInterval,
   reviewLabel,
+  type NewProblem,
   type NewReview,
   type ReviewRating,
   type ProblemDetail,
@@ -15,6 +16,8 @@ type ProblemDetailModalProps = {
   problemId: string;
   onClose: () => void;
   onSubmitReview: (problemId: string, review: NewReview) => Promise<ProblemDetail>;
+  onDeleteProblem: (problemId: string) => Promise<void>;
+  onUpdateProblem: (problemId: string, problem: NewProblem) => Promise<ProblemDetail>;
 };
 
 const ratings: ReviewRating[] = ["Again", "Hard", "Good", "Easy"];
@@ -41,6 +44,8 @@ export default function ProblemDetailModal({
   problemId,
   onClose,
   onSubmitReview,
+  onDeleteProblem,
+  onUpdateProblem,
 }: ProblemDetailModalProps) {
   const [problem, setProblem] = useState<ProblemDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,7 +55,70 @@ export default function ProblemDetailModal({
   const [reviewNotes, setReviewNotes] = useState("");
   const [isSavingReview, setIsSavingReview] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
   const [isReviewHistoryOpen, setIsReviewHistoryOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValues, setEditValues] = useState<NewProblem>({
+    title: "",
+    url: "",
+    difficulty: null,
+    topics: [],
+    notes: "",
+  });
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  function beginEditing() {
+    if (!problem) return;
+    setEditValues({
+      title: problem.title,
+      url: problem.url,
+      difficulty: problem.difficulty,
+      topics: problem.topics,
+      notes: problem.notes,
+    });
+    setEditError(null);
+    setIsEditing(true);
+  }
+
+  async function submitEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSavingEdit(true);
+    setEditError(null);
+    try {
+      const updatedProblem = await onUpdateProblem(problemId, {
+        ...editValues,
+        title: editValues.title.trim(),
+        url: editValues.url.trim(),
+        topics: editValues.topics
+          .map((topic) => topic.trim())
+          .filter(Boolean),
+        notes: editValues.notes.trim(),
+      });
+      setProblem(updatedProblem);
+      setIsEditing(false);
+    } catch (err: unknown) {
+      setEditError(err instanceof Error ? err.message : "Could not update problem");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }
+
+  async function deleteCurrentProblem() {
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await onDeleteProblem(problemId);
+      onClose();
+    } catch (err: unknown) {
+      setDeleteError(err instanceof Error ? err.message : "Could not delete problem");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
 
   async function submitReview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -137,14 +205,25 @@ export default function ProblemDetailModal({
               Details and review history for this problem.
             </p>
           </div>
-          <button
-            className={styles.closeButton}
-            type="button"
-            onClick={onClose}
-            aria-label="Close problem details"
-          >
-            ×
-          </button>
+          <div className={styles.headerActions}>
+            {problem && !isLoading && !isEditing && (
+              <button
+                className={styles.editButton}
+                type="button"
+                onClick={beginEditing}
+              >
+                Edit
+              </button>
+            )}
+            <button
+              className={styles.closeButton}
+              type="button"
+              onClick={onClose}
+              aria-label="Close problem details"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
         {isLoading ? (
@@ -153,7 +232,82 @@ export default function ProblemDetailModal({
           <p className={`${styles.message} ${styles.error}`} role="alert">
             Could not load problem details: {error}
           </p>
-        ) : problem ? (
+        ) : problem ? isEditing ? (
+          <form className={styles.editForm} onSubmit={submitEdit}>
+            <label className={styles.editField}>
+              Problem name
+              <input
+                autoFocus
+                required
+                maxLength={200}
+                value={editValues.title}
+                onChange={(event) => setEditValues({ ...editValues, title: event.target.value })}
+              />
+            </label>
+            <label className={styles.editField}>
+              URL
+              <input
+                type="url"
+                required
+                maxLength={2048}
+                value={editValues.url}
+                onChange={(event) => setEditValues({ ...editValues, url: event.target.value })}
+              />
+            </label>
+            <label className={styles.editField}>
+              Difficulty
+              <select
+                value={editValues.difficulty ?? ""}
+                onChange={(event) => setEditValues({
+                  ...editValues,
+                  difficulty: (event.target.value || null) as ProblemDetail["difficulty"],
+                })}
+              >
+                <option value="">Choose difficulty (optional)</option>
+                <option value="Easy">Easy</option>
+                <option value="Medium">Medium</option>
+                <option value="Hard">Hard</option>
+              </select>
+            </label>
+            <label className={styles.editField}>
+              Topics
+              <input
+                value={editValues.topics.join(", ")}
+                onChange={(event) => setEditValues({
+                  ...editValues,
+                  topics: event.target.value.split(","),
+                })}
+                placeholder="Separate topics with commas"
+              />
+            </label>
+            <label className={styles.editField}>
+              Notes
+              <textarea
+                rows={4}
+                value={editValues.notes}
+                onChange={(event) => setEditValues({ ...editValues, notes: event.target.value })}
+              />
+            </label>
+            {editError && <p className={styles.error} role="alert">{editError}</p>}
+            <div className={styles.editActions}>
+              <button
+                className={styles.cancelEditButton}
+                type="button"
+                onClick={() => setIsEditing(false)}
+                disabled={isSavingEdit}
+              >
+                Cancel
+              </button>
+              <button
+                className={styles.saveEditButton}
+                type="submit"
+                disabled={isSavingEdit}
+              >
+                {isSavingEdit ? "Saving…" : "Save changes"}
+              </button>
+            </div>
+          </form>
+        ) : (
           <div className={styles.detailContent}>
             <a
               className={styles.problemLink}
@@ -208,8 +362,20 @@ export default function ProblemDetailModal({
             )}
 
             <section className={styles.section} aria-labelledby="record-review-heading">
-              <h3 id="record-review-heading">Record a review</h3>
-              <form className={styles.reviewForm} onSubmit={submitReview}>
+              <button
+                className={styles.historyToggle}
+                type="button"
+                aria-expanded={isReviewFormOpen}
+                aria-controls="record-review-content"
+                onClick={() => setIsReviewFormOpen((isOpen) => !isOpen)}
+              >
+                <span id="record-review-heading">Record a review</span>
+                <span className={styles.historyChevron} aria-hidden="true">
+                  {isReviewFormOpen ? "−" : "+"}
+                </span>
+              </button>
+              {isReviewFormOpen && (
+              <form id="record-review-content" className={styles.reviewForm} onSubmit={submitReview}>
                 <label className={styles.selectField}>
                   Review difficulty
                   <select
@@ -275,6 +441,7 @@ export default function ProblemDetailModal({
                   {isSavingReview ? "Saving review…" : "Save review"}
                 </button>
               </form>
+              )}
             </section>
 
             <section className={styles.section} aria-labelledby="review-history-heading">
@@ -320,6 +487,44 @@ export default function ProblemDetailModal({
                     </ol>
                   )}
                 </div>
+              )}
+            </section>
+
+            <section className={styles.deleteSection} aria-label="Delete problem">
+              {isDeleteConfirmOpen ? (
+                <div className={styles.deleteConfirmation}>
+                  <p>
+                    Delete <strong>{problem.title}</strong> and its review history?
+                    This cannot be undone.
+                  </p>
+                  {deleteError && <p className={styles.error} role="alert">{deleteError}</p>}
+                  <div className={styles.deleteActions}>
+                    <button
+                      className={styles.cancelDeleteButton}
+                      type="button"
+                      onClick={() => setIsDeleteConfirmOpen(false)}
+                      disabled={isDeleting}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className={styles.confirmDeleteButton}
+                      type="button"
+                      onClick={deleteCurrentProblem}
+                      disabled={isDeleting}
+                    >
+                      {isDeleting ? "Deleting…" : "Delete problem"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  className={styles.deleteProblemButton}
+                  type="button"
+                  onClick={() => setIsDeleteConfirmOpen(true)}
+                >
+                  Delete problem
+                </button>
               )}
             </section>
           </div>
