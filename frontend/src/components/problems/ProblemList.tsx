@@ -6,12 +6,14 @@ type ProblemListProps = {
   problems: Problem[];
   isLoading: boolean;
   error: string | null;
+  onSelectProblem: (problem: Problem) => void;
 };
 
 export default function ProblemList({
   problems,
   isLoading,
   error,
+  onSelectProblem,
 }: ProblemListProps) {
   return (
     <div className={styles.list}>
@@ -31,7 +33,11 @@ export default function ProblemList({
         <div className={styles.emptyState}>No problems added yet.</div>
       ) : (
         problems.map((problem) => (
-          <ProblemRow key={problem.id} problem={problem} />
+          <ProblemRow
+            key={problem.id}
+            problem={problem}
+            onSelect={onSelectProblem}
+          />
         ))
       )}
     </div>

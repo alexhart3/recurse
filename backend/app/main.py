@@ -1,4 +1,6 @@
 from typing import Literal, Optional
+from uuid import UUID
+import math
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,6 +32,30 @@ class ProblemCreate(BaseModel):
     @classmethod
     def clean_topics(cls, topics: list[str]) -> list[str]:
         return list(dict.fromkeys(topic.strip() for topic in topics if topic.strip()))
+
+
+class ReviewCreate(BaseModel):
+    rating: Literal["Again", "Hard", "Good", "Easy"]
+    solved_on_own: bool
+    notes: str = ""
+
+    @field_validator("notes")
+    @classmethod
+    def strip_notes(cls, value: str) -> str:
+        return value.strip()
+
+
+def calculate_review_interval(
+    rating: str,
+    current_interval: int,
+    review_count: int,
+    solved_on_own: bool,
+) -> int:
+    if not solved_on_own or rating == "Again" or review_count == 0:
+        return 1
+
+    multipliers = {"Hard": 1.2, "Good": 2, "Easy": 2.5}
+    return math.ceil(current_interval * multipliers[rating])
 
 app.add_middleware(
     CORSMiddleware,
@@ -88,6 +114,64 @@ def list_problems():
         ) from exc
 
 
+@app.get("/problems/{problem_id}")
+def get_problem(problem_id: UUID):
+    try:
+        with engine.connect() as connection:
+            problem_result = connection.execute(
+                text("""
+                    select
+                        id,
+                        title,
+                        url,
+                        difficulty,
+                        topics,
+                        notes,
+                        created_at,
+                        last_reviewed_at,
+                        next_review_date,
+                        review_interval_days,
+                        review_count
+                    from public.problems
+                    where id = cast(:problem_id as uuid)
+                """),
+                {"problem_id": str(problem_id)},
+            )
+            problem = problem_result.mappings().first()
+
+            if problem is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Problem not found",
+                )
+
+            reviews_result = connection.execute(
+                text("""
+                    select
+                        id,
+                        reviewed_at,
+                        rating,
+                        solved_on_own,
+                        interval_days_after,
+                        notes
+                    from public.reviews
+                    where problem_id = cast(:problem_id as uuid)
+                    order by reviewed_at desc
+                """),
+                {"problem_id": str(problem_id)},
+            )
+
+            return {
+                **dict(problem),
+                "reviews": [dict(review) for review in reviews_result.mappings()],
+            }
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not load problem details",
+        ) from exc
+
+
 @app.post("/problems", status_code=201)
 def create_problem(problem: ProblemCreate):
     try:
@@ -133,4 +217,82 @@ def create_problem(problem: ProblemCreate):
         raise HTTPException(
             status_code=503,
             detail="Could not save problem",
+        ) from exc
+
+
+@app.post("/problems/{problem_id}/reviews")
+def create_review(problem_id: UUID, review: ReviewCreate):
+    try:
+        with engine.begin() as connection:
+            current_result = connection.execute(
+                text("""
+                    select review_interval_days, review_count
+                    from public.problems
+                    where id = cast(:problem_id as uuid)
+                    for update
+                """),
+                {"problem_id": str(problem_id)},
+            )
+            current_problem = current_result.mappings().first()
+            if current_problem is None:
+                raise HTTPException(status_code=404, detail="Problem not found")
+
+            interval_days = calculate_review_interval(
+                review.rating,
+                current_problem["review_interval_days"],
+                current_problem["review_count"],
+                review.solved_on_own,
+            )
+            connection.execute(
+                text("""
+                    insert into public.reviews (
+                        problem_id, rating, solved_on_own, interval_days_after, notes
+                    ) values (
+                        cast(:problem_id as uuid), :rating, :solved_on_own,
+                        :interval_days_after, :notes
+                    )
+                """),
+                {
+                    "problem_id": str(problem_id),
+                    "rating": review.rating,
+                    "solved_on_own": review.solved_on_own,
+                    "interval_days_after": interval_days,
+                    "notes": review.notes,
+                },
+            )
+            updated_result = connection.execute(
+                text("""
+                    update public.problems
+                    set last_reviewed_at = now(),
+                        next_review_date = current_date + :interval_days,
+                        review_interval_days = :interval_days,
+                        review_count = review_count + 1
+                    where id = cast(:problem_id as uuid)
+                    returning
+                        id, title, url, difficulty, topics, notes, created_at,
+                        last_reviewed_at, next_review_date,
+                        review_interval_days, review_count
+                """),
+                {"problem_id": str(problem_id), "interval_days": interval_days},
+            )
+            updated_problem = dict(updated_result.mappings().one())
+
+            reviews_result = connection.execute(
+                text("""
+                    select id, reviewed_at, rating, solved_on_own,
+                           interval_days_after, notes
+                    from public.reviews
+                    where problem_id = cast(:problem_id as uuid)
+                    order by reviewed_at desc
+                """),
+                {"problem_id": str(problem_id)},
+            )
+            return {
+                **updated_problem,
+                "reviews": [dict(row) for row in reviews_result.mappings()],
+            }
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not save review",
         ) from exc

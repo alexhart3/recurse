@@ -1,15 +1,17 @@
 "use client";
 
+import { useState } from "react";
+import AddProblemModal from "@/components/problems/AddProblemModal";
 import ProblemList from "@/components/problems/ProblemList";
 import ProblemSummary from "@/components/problems/ProblemSummary";
-import AddProblemModal from "@/components/problems/AddProblemModal";
+import ProblemDetailModal from "@/components/problems/ProblemDetailModal";
 import { useProblems } from "@/components/problems/useProblems";
 import styles from "./page.module.css";
-import { useState } from "react";
 
 export default function Home() {
-  const { problems, isLoading, error, addProblem } = useProblems();
+  const { problems, isLoading, error, addProblem, recordReview } = useProblems();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [selectedProblemId, setSelectedProblemId] = useState<string | null>(null);
 
   return (
     <main className={styles.main}>
@@ -40,6 +42,7 @@ export default function Home() {
           problems={problems}
           isLoading={isLoading}
           error={error}
+          onSelectProblem={(problem) => setSelectedProblemId(problem.id)}
         />
 
         <p className={styles.footerNote}>
@@ -51,6 +54,13 @@ export default function Home() {
         <AddProblemModal
           onClose={() => setIsAddModalOpen(false)}
           onSubmit={addProblem}
+        />
+      )}
+      {selectedProblemId && (
+        <ProblemDetailModal
+          problemId={selectedProblemId}
+          onClose={() => setSelectedProblemId(null)}
+          onSubmitReview={recordReview}
         />
       )}
     </main>

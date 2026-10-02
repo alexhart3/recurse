@@ -3,6 +3,7 @@ import styles from "./problems.module.css";
 
 type ProblemRowProps = {
   problem: Problem;
+  onSelect: (problem: Problem) => void;
 };
 
 function difficultyClass(difficulty: Problem["difficulty"]) {
@@ -12,11 +13,16 @@ function difficultyClass(difficulty: Problem["difficulty"]) {
   return styles.unrated;
 }
 
-export default function ProblemRow({ problem }: ProblemRowProps) {
+export default function ProblemRow({ problem, onSelect }: ProblemRowProps) {
   const days = daysUntilReview(problem.next_review_date);
 
   return (
-    <article className={styles.row}>
+    <button
+      className={`${styles.row} ${styles.problemButton}`}
+      type="button"
+      onClick={() => onSelect(problem)}
+      aria-label={`View details for ${problem.title}`}
+    >
       <div className={styles.problemInfo}>
         <div className={styles.problemText}>
           <h2>{problem.title}</h2>
@@ -45,6 +51,6 @@ export default function ProblemRow({ problem }: ProblemRowProps) {
           ↗
         </span>
       </div>
-    </article>
+    </button>
   );
 }

@@ -20,6 +20,43 @@ export type NewProblem = {
   notes: string;
 };
 
+export type ReviewRating = "Again" | "Hard" | "Good" | "Easy";
+
+export type NewReview = {
+  rating: ReviewRating;
+  solved_on_own: boolean;
+  notes: string;
+};
+
+export type ProblemReview = {
+  id: string;
+  reviewed_at: string;
+  rating: ReviewRating;
+  solved_on_own: boolean;
+  interval_days_after: number;
+  notes: string;
+};
+
+export type ProblemDetail = Problem & {
+  reviews: ProblemReview[];
+};
+
+export function nextReviewInterval(
+  problem: Problem,
+  rating: ReviewRating,
+  solvedOnOwn: boolean,
+) {
+  if (!solvedOnOwn || rating === "Again" || problem.review_count === 0) return 1;
+
+  const multipliers: Record<ReviewRating, number> = {
+    Again: 1,
+    Hard: 1.2,
+    Good: 2,
+    Easy: 2.5,
+  };
+  return Math.ceil(problem.review_interval_days * multipliers[rating]);
+}
+
 export function daysUntilReview(dateString: string) {
   const [year, month, day] = dateString.split("-").map(Number);
   const today = new Date();

@@ -40,6 +40,29 @@
   border-top: 0;
 }
 
+.problemButton {
+  width: 100%;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  background: #fff;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.problemButton:hover {
+  background: #fcfcfa;
+}
+
+.problemButton:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid #829b84;
+  outline-offset: -2px;
+}
+
 .columnHead {
   min-height: 42px;
   background: #fcfcfa;
